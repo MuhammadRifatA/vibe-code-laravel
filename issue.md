@@ -1,36 +1,118 @@
-# Project Setup: Laravel 12 dengan Breeze, Sanctum, dan PostgreSQL
+# Rencana Implementasi: Fitur Registrasi API User
 
-## Objective
-Membangun fondasi project baru menggunakan Laravel 12 di dalam direktori ini dengan otentikasi dan konfigurasi database yang disyaratkan.
+Dokumen ini berisi spesifikasi teknis dan panduan langkah demi langkah (implementasi) untuk membuat fitur registrasi user baru melalui REST API. Silakan ikuti instruksi berikut secara berurutan.
 
-## Spesifikasi Teknis
-- **Framework**: Laravel 12
-- **Database**: PostgreSQL
-- **Authentication/API**: Laravel Sanctum
-- **Starter Kit / Auth Scaffold**: Laravel Breeze
+## 1. Spesifikasi Database & Migration
 
-## Langkah-langkah Implementasi (High-Level)
+Kita membutuhkan tabel `users` dengan struktur sebagai berikut:
+- `id`: integer, auto increment, primary key
+- `name`: varchar(255), not null
+- `email`: varchar(255), not null, unique
+- `password`: varchar(255), not null (**Wajib** di-hash dengan standar bcrypt)
+- Timestamps: `created_at` dan `updated_at` (default Laravel)
 
-Silakan implementasikan tugas berikut secara berurutan:
+**Tugas Anda:**
+- Laravel secara default biasanya sudah menyediakan migration untuk tabel `users`. Buka folder `database/migrations/` dan temukan file `...create_users_table.php`.
+- Pastikan di dalam method `up()` struktur kolom sesuai dengan kebutuhan. Jika belum ada, buat migration baru menggunakan perintah:
+  `php artisan make:migration create_users_table`
+- Jalankan perintah `php artisan migrate`
 
-### 1. Inisialisasi Project Laravel 12
-- Buat project Laravel 12 baru tepat di dalam direktori saat ini (tanpa membuat sub-direktori baru).
-- Atur file dan folder bawaan agar sesuai dengan struktur standar Laravel.
+## 2. Model: `app/Models/User.php`
 
-### 2. Konfigurasi Database PostgreSQL
-- Ubah konfigurasi driver database bawaan pada project menjadi PostgreSQL.
-- Perbarui file environment (`.env`) dengan parameter koneksi PostgreSQL yang sesuai (host, port, database, username, password).
+**Tugas Anda:**
+- Buka file `app/Models/User.php` (atau buat jika belum ada menggunakan `php artisan make:model User`).
+- Pastikan property `$fillable` memiliki field yang diizinkan untuk mass assignment: `['name', 'email', 'password']`.
+- Pastikan bahwa password akan dienkripsi / di-hash saat data disimpan ke database. Anda dapat menggunakan *mutators* atau cast bawaan Laravel.
 
-### 3. Setup Laravel Sanctum
-- Install dependensi Laravel Sanctum melalui Composer.
-- Publikasikan konfigurasi Sanctum beserta file migrasinya.
-- Pastikan model `User` menggunakan trait yang diperlukan (`HasApiTokens`) agar siap digunakan untuk autentikasi API.
+## 3. Form Request Validation: `app/Http/Requests/StoreUserRequest.php`
 
-### 4. Setup Laravel Breeze
-- Install paket Laravel Breeze melalui Composer.
-- Lakukan proses instalasi Breeze (pilih stack default atau yang disepakati, misalnya Blade/React/Vue).
-- Lakukan instalasi dependency frontend (npm) dan build asset-nya.
+**Tugas Anda:**
+- Buat file form request dengan perintah:
+  `php artisan make:request StoreUserRequest`
+- Dalam file `StoreUserRequest.php`:
+  1. Ubah method `authorize()` menjadi me-return `true` (jika user diizinkan mengakses tanpa token login sebelumnya).
+  2. Di method `rules()`, tambahkan aturan (rules) validasi dasar:
+     - `name`: `required|string|max:255`
+     - `email`: `required|string|email|max:255|unique:users`
+     - `password`: `required|string`
+  3. Khusus untuk error pada bagian "email unik" (unique:users), tangani / overriding method `failedValidation` di dalam **StoreUserRequest** untuk mengembalikan format JSON error secara spesifik jika gagal validasi, agar response sesuai permintaan di bawah:
+     ```json
+     {
+         "error": "Email sudah terdaftar"
+     }
+     ```
 
-### 5. Finalisasi & Migrasi
-- Jalankan migrasi ke database PostgreSQL (`php artisan migrate`) untuk memastikan koneksi berhasil dan seluruh tabel bawaan (termasuk users dan personal_access_tokens) terbentuk.
-- Lakukan basic sanity check untuk memastikan fitur autentikasi bawaan Breeze (Login/Register) berjalan lancar.
+## 4. Controller: `app/Http/Controllers/UserController.php`
+
+**Tugas Anda:**
+- Buat Controller dengan menjalankan:
+  `php artisan make:controller UserController`
+- Dalam controller ini, buat sebuah method bernama `store` yang menerima injeksi dependensi tipe dari `StoreUserRequest`:
+  `public function store(StoreUserRequest $request)`
+- Alur Logika Eksekusi di dalam method `store`:
+  1. Ambil data yang lolos validasi (misal via `$request->validated()`).
+  2. Lakukan hash secara manual menggunakan `Hash::make()` (apabila belum di tangani oleh mutator Model di poin 2).
+  3. Simpan data ke dalam database dengan `User::create([...])`.
+  4. Return response JSON berhasil:
+     ```json
+     {
+         "data": "Ok"
+     }
+     ```
+
+## 5. Routing API: `routes/api.php`
+
+**Tugas Anda:**
+- Buka file `routes/api.php` (Catatan: perhatikan folder `routes/` dengan huruf kecil).
+- Import / "use" class `UserController` di bagian atas file.
+- Definisikan endpoint POST baru seperti di bawah ini, yang mengarah ke method `store`:
+  `Route::post('/user', [UserController::class, 'store']);`
+
+---
+
+## Ringkasan Spesifikasi Endpoint API target
+
+**Endpoint:**
+`POST /api/user`
+
+**Request Body:**
+```json
+{
+    "name"  : "Ahamad",
+    "email" : "ahamad@gmail.com",
+    "password" : "password"
+}
+```
+
+**Response Body (Sukses 200/201):**
+```json
+{
+    "data"  : "Ok"
+}
+```
+
+**Response Body (Error 400/422):**
+```json
+{
+    "error" : "Email sudah terdaftar"
+}
+```
+
+## Struktur Folder Terlibat
+
+Pastikan semua file yang Anda kerjakan atau Anda buat ditempatkan sesuai struktur di bawah ini:
+
+```
+app/
+├── Http/
+│   ├── Controllers/
+│   │   └── UserController.php
+│   └── Requests/
+│       └── StoreUserRequest.php
+├── Models/
+│   └── User.php
+└── routes/
+    └── api.php
+```
+
+*(Pekerja, selesaikan instruksi satu per satu secara runut agar rapi.)*
