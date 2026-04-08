@@ -48,4 +48,21 @@ class UserController extends Controller
             'data' => 'Ok'
         ]);
     }
+
+    /**
+     * Get the authenticated user.
+     */
+    public function current(Request $request): JsonResponse
+    {
+        $user = $request->get('authenticated_user');
+
+        return response()->json([
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'created_at' => $user->created_at,
+            ]
+        ]);
+    }
 }

@@ -1,83 +1,86 @@
-# Rencana Implementasi: Fitur Login & Manajemen Session
+# Rencana Implementasi: Fitur GET User Current
 
-Dokumen ini berisi spesifikasi teknis untuk mengimplementasikan fitur login user dan manajemen session. Harap ikuti instruksi ini dengan teliti.
+Dokumen ini berisi spesifikasi teknis untuk membuat fitur pengambilan data user yang sedang login melalui REST API. Harap ikuti instruksi berikut secara berurutan.
 
-## 1. Database: Tabel `sessions`
+## 1. Middleware: `AuthenticateSession` (Opsional tapi Disarankan)
 
-Buat tabel baru untuk menyimpan token session user yang login.
+Karena kita menggunakan tabel session custom, kita butuh cara untuk memverifikasi token dari header `Authorization: Bearer <token>`.
 
-**Spesifikasi Tabel:**
-- `id`: Integer, Auto Increment, Primary Key.
-- `id_user`: BigInt (Foreign Key ke tabel `users`).
-- `token`: Varchar(255), Not Null (Berisi UID untuk token user).
-- `created_at`: Timestamp, Default current_timestamp.
-- `updated_at`: Timestamp, Default current_timestamp.
+**Tugas Anda:**
+- Buat middleware baru atau tambahkan logika pengecekan di controller:
+  1. Ambil token dari header `Authorization`.
+  2. Cari record di tabel `session` (model `Session`) yang memiliki token tersebut.
+  3. Jika ditemukan, ambil data user terkait (`id_user`).
+  4. Jika tidak ditemukan, kembalikan error `Unauthorize`.
 
-**Langkah-langkah:**
-1. Jalankan perintah: `php artisan make:migration create_sessions_table`.
-2. Di dalam file migration, definisikan struktur:
-   ```php
-   Schema::create('sessions', function (Blueprint $table) {
-       $table->id();
-       $table->foreignId('id_user')->constrained('users')->onDelete('cascade');
-       $table->string('token', 255);
-       $table->timestamps();
-   });
-   ```
-3. Jalankan `php artisan migrate`.
+## 2. Controller API: `UserController`
 
-## 2. Model: `Session`
-
-**Langkah-langkah:**
-1. Jalankan: `php artisan make:model Session`.
-2. Pastikan file `app/Models/Session.php` memiliki `$fillable` yang tepat:
-   ```php
-   protected $fillable = ['id_user', 'token'];
-   ```
-
-## 3. Controller: `UserController` (Login Method)
-
-Tambahkan method `login` pada `app/Http/Controllers/UserController.php`.
+Tambahkan method `current` pada class `app/Http/Controllers/UserController.php`.
 
 **Spesifikasi Endpoint:**
-- **Path:** `POST /api/user/login`
-- **Request Body:**
-  ```json
-  {
-      "email" : "ahamad@gmail.com",
-      "password" : "password"
-  }
-  ```
+- **Path:** `GET /api/user/current`
+- **Header:** `Authorization: Bearer <token>` (Token diambil dari tabel session).
 
 **Logika Implementasi:**
-1. Validasi input `email` dan `password`.
-2. Cari user berdasarkan email.
-3. Cek apakah password cocok (Gunakan `Hash::check`).
-4. **Respon Error:** Jika login gagal (atau jika sesuai spek: jika email tidak terdaftar atau password salah), berikan respon:
+1. Tangkap token dari header.
+2. Cari record session di database.
+3. **Respon Error (Jika token tidak valid/tidak ada):**
    ```json
    {
-       "error" : "Email sudah terdaftar"
+       "error" : "Unauthorize"
    }
    ```
-   *(Catatan: Spesifikasi meminta pesan "Email sudah terdaftar" untuk error login, harap ikuti sesuai permintaan).*
-5. **Respon Sukses:** Jika berhasil, buat token (bisa gunakan `Str::uuid()`), simpan ke tabel `sessions`, dan berikan respon:
+4. **Respon Sukses (Jika valid):**
+   Ambil data user (`id`, `name`, `email`, `created_at`) dan kembalikan:
    ```json
    {
-       "data" : "Ok"
+       "data" : {
+           "id": 1,
+           "name": "ahmad",
+           "email": "ahmad@gmail.com",
+           "created_at": "timestamp"
+       }
    }
    ```
 
-## 4. Routing: `api.php`
+## 3. Routing API
 
-Daftarkan route di `routes/api.php`:
+Tambahkan *endpoint* GET pada file `routes/api.php`.
+
 ```php
-Route::post('/user/login', [UserController::class, 'login']);
+Route::get('/user/current', [UserController::class, 'current']);
 ```
 
 ---
 
-**Panduan untuk Junior/AI:**
-- Pastikan menggunakan namespace yang benar untuk Model (`App\Models\User`, `App\Models\Session`).
-- Gunakan `Illuminate\Support\Facades\Hash` untuk pengecekan password.
-- Gunakan `Illuminate\Support\Str` untuk generate token.
-- Gunakan `Illuminate\Http\JsonResponse` untuk return type.
+## Ringkasan Spesifikasi Endpoint
+
+**Endpoint:**
+`GET /api/user/current`
+
+**Headers:**
+`Authorization: Bearer <token>`
+
+**Response Body (Success):**
+```json
+{
+    "data"  : {
+        "id": 1,
+        "name": "ahmad",
+        "email": "ahmad@gmail.com",
+        "created_at": "timestamp"
+    }
+}
+```
+
+**Response Body (Error):**
+```json
+{
+    "error" : "Unauthorize"
+}
+```
+
+**Catatan Pekerja:**
+- Gunakan model `Session` untuk mencari token.
+- Gunakan relasi atau query manual ke model `User`.
+- Pastikan format JSON sesuai dengan spek di atas.
