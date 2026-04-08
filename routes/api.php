@@ -10,3 +10,4 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/user', [UserController::class, 'store']);
 Route::post('/user/login', [UserController::class, 'login']);
+Route::get('/user/current', [UserController::class, 'current'])->middleware('auth.session');
